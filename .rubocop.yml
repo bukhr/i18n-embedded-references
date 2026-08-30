@@ -1,0 +1,23 @@
+AllCops:
+  TargetRubyVersion: 2.7
+  NewCops: enable
+  SuggestExtensions: false
+
+Style/Documentation:
+  Enabled: false
+
+Metrics/BlockLength:
+  Exclude:
+    - 'test/**/*'
+    - '*.gemspec'
+
+Layout/LineLength:
+  Max: 120
+
+Metrics/ClassLength:
+  Exclude:
+    - 'test/**/*'
+
+Style/FormatStringToken:
+  Exclude:
+    - 'test/**/*'
