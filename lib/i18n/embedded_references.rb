@@ -3,3 +3,4 @@
 require 'i18n'
 require_relative 'embedded_references/version'
 require_relative 'backend/embedded_references'
+require_relative 'embedded_references/railtie' if defined?(Rails::Railtie)

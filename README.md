@@ -111,6 +111,53 @@ and the message names the key that is actually absent
 store, so `store_translations` at runtime is picked up on the next lookup and
 the raw `${}` source is preserved in the backend.
 
+## Checking references statically
+
+The gem ships a checker that reads your locale files without booting the app
+and reports, per file and key:
+
+- **broken references**: the target key does not exist in the locale or its
+  fallbacks (at runtime this would surface as a missing translation)
+- **circular references**: `a -> b -> a` (at runtime: `CircularReferenceError`)
+- **scope references embedded in text**: `"See ${menu}"` where `menu` is a
+  hash or array
+
+```bash
+bundle exec i18n-embedded-references check config/locales packs/**/config/locales
+```
+
+```
+config/locales/en.yml
+  en.formulas.categories.sobretiempos.description
+    error: broken reference ${{custom_translations.models.employee.one} (not found in en, es)
+
+78 errors, 0 warnings, 21682 references checked in 19176 files (4.5s)
+```
+
+Exit status is 1 when there are errors, so it drops straight into CI.
+
+Fallbacks default to the region-stripped parent (`es-CL` -> `es`). Anything
+else, plus keys that another backend resolves at runtime, goes in
+`.i18n-embedded-references.yml` (picked up automatically) or `--config FILE`:
+
+```yaml
+paths:
+  - config/locales
+  - packs/**/config/locales
+default_fallbacks: [es]        # I18n.fallbacks = [:es]
+fallbacks:
+  ca: [es]                     # extra per-locale chains
+ignore_missing:
+  - 'custom_translations.*'    # resolved by a database backend, not YAML
+```
+
+The same options exist as flags: `--fallback ca:es`, `--default-fallback es`,
+`--ignore-missing 'custom_translations.*'`, `--quiet`.
+
+In Rails the task `rake i18n:embedded_references:check` is available
+(`PATHS="a b"` and `CONFIG=file` override the config). Elsewhere, add
+`require 'i18n/embedded_references/tasks'` to your Rakefile.
+
 ## Differences from i18n-recursive-lookup
 
 - No ActiveSupport dependency.
