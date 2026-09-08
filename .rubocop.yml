@@ -14,10 +14,27 @@ Metrics/BlockLength:
 Layout/LineLength:
   Max: 120
 
-Metrics/ClassLength:
+
+Style/FormatStringToken:
   Exclude:
     - 'test/**/*'
 
-Style/FormatStringToken:
+Metrics/MethodLength:
+  Max: 20
+
+Metrics/AbcSize:
+  Max: 25
+
+Metrics/CyclomaticComplexity:
+  Max: 12
+
+Metrics/PerceivedComplexity:
+  Max: 12
+
+Metrics/ParameterLists:
+  Max: 6
+
+Metrics/ClassLength:
+  Max: 200
   Exclude:
     - 'test/**/*'

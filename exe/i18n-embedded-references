@@ -1,0 +1,6 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'i18n/embedded_references/cli'
+
+exit I18n::EmbeddedReferences::CLI.new.run(ARGV)
