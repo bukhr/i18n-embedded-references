@@ -38,6 +38,20 @@ class EmbeddedReferencesTest < BackendTestCase
     assert_equal %w[mon tue], I18n.t(:alias)
   end
 
+  def test_broken_reference_inside_hash_only_affects_that_element
+    store(:en, name: 'Alice', messages: { hi: 'hi ${name}', bad: 'x ${nope}' })
+    result = I18n.t(:messages)
+    assert_equal 'hi Alice', result[:hi]
+    assert_match(/translation missing: en\.nope/i, result[:bad])
+  end
+
+  def test_broken_reference_inside_array_only_affects_that_element
+    store(:en, name: 'Alice', list: ['hi ${name}', 'x ${nope}'])
+    result = I18n.t(:list)
+    assert_equal 'hi Alice', result[0]
+    assert_match(/translation missing: en\.nope/i, result[1])
+  end
+
   def test_hash_values_are_resolved
     store(:en, name: 'Alice', messages: { hi: 'hi ${name}', bye: 'bye ${name}' })
     assert_equal({ hi: 'hi Alice', bye: 'bye Alice' }, I18n.t(:messages))
@@ -159,6 +173,40 @@ class EmbeddedReferencesFallbacksTest < BackendTestCase
     store(:'en-CL', other: 'other ${greeting.alert}')
     I18n.locale = :'en-CL'
     assert_equal 'other alert notice-cl', I18n.t(:other)
+  end
+end
+
+class EmbeddedReferencesFallbacksOnChainTest < BackendTestCase
+  def setup
+    super
+    simple = Backend.new
+    simple.store_translations(:en, name: 'notice', greeting: { alert: 'alert ${name}' }, only_en: 'en ${name}')
+    simple.store_translations(:en, a: 'en-a', b: 'en-b', pair: '${a} ${b}', pair_hash: { x: '${a}', y: '${b}' })
+    simple.store_translations(:'en-CL', name: 'notice-cl', a: 'cl-a', b: 'cl-b')
+    I18n.backend = FallbacksChain.new(Backend.new, simple)
+    I18n.available_locales = %i[en en-CL]
+    I18n.fallbacks = [:en]
+  end
+
+  def test_reference_found_via_fallback_resolves_in_requested_locale
+    I18n.locale = :'en-CL'
+    assert_equal 'alert notice-cl', I18n.t(:'greeting.alert')
+    assert_equal({ alert: 'alert notice-cl' }, I18n.t(:greeting))
+  end
+
+  def test_explicit_locale_wins_over_thread_locale
+    I18n.locale = :en
+    assert_equal 'en notice-cl', I18n.t(:only_en, locale: :'en-CL')
+  end
+
+  def test_explicit_locale_is_kept_for_every_reference_in_a_string
+    I18n.locale = :en
+    assert_equal 'cl-a cl-b', I18n.t(:pair, locale: :'en-CL')
+  end
+
+  def test_explicit_locale_is_kept_for_every_reference_in_a_hash
+    I18n.locale = :en
+    assert_equal({ x: 'cl-a', y: 'cl-b' }, I18n.t(:pair_hash, locale: :'en-CL'))
   end
 end
 

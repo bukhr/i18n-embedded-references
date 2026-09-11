@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.0
+
+- The requested locale is taken from the `fallback_original_locale` option
+  that `I18n::Backend::Fallbacks` passes down, so references resolve with the
+  right locale when Fallbacks is included above the backend (Rails includes
+  it into the root backend class, a Chain in many apps). Requires i18n >= 1.9.
+- Inside hashes and arrays a missing referenced key is handled per element
+  by the standard exception handler instead of making the whole structure
+  missing.
+
 ## 1.1.0
 
 - Static checker for locale files: `i18n-embedded-references check` (CLI),

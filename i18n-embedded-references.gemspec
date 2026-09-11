@@ -29,5 +29,5 @@ Gem::Specification.new do |spec|
   spec.executables = ['i18n-embedded-references']
   spec.require_paths = ['lib']
 
-  spec.add_dependency 'i18n', '>= 1.8', '< 2'
+  spec.add_dependency 'i18n', '>= 1.9', '< 2'
 end

@@ -13,6 +13,12 @@ class BackendTestCase < Minitest::Test
     include I18n::Backend::EmbeddedReferences
   end
 
+  # Rails includes Fallbacks into the class of the root backend, which in
+  # apps using Chain is the Chain itself, above the Simple backend.
+  class FallbacksChain < I18n::Backend::Chain
+    include I18n::Backend::Fallbacks
+  end
+
   def setup
     I18n.backend = Backend.new
     I18n.enforce_available_locales = false
