@@ -9,6 +9,8 @@
 - Inside hashes and arrays a missing referenced key is handled per element
   by the standard exception handler instead of making the whole structure
   missing.
+- `require 'i18n-embedded-references'` (Bundler's default autorequire for
+  the gem name) now works; `require 'i18n/embedded_references'` stays valid.
 
 ## 1.1.0
 

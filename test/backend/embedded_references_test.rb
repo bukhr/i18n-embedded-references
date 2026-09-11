@@ -220,3 +220,9 @@ class EmbeddedReferencesChainTest < BackendTestCase
     assert_equal 'hello from second', I18n.t(:greeting)
   end
 end
+
+class EmbeddedReferencesEntryPointTest < Minitest::Test
+  def test_gem_name_is_requirable
+    assert require('i18n-embedded-references') || defined?(I18n::Backend::EmbeddedReferences)
+  end
+end

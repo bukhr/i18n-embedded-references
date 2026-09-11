@@ -38,3 +38,7 @@ Metrics/ClassLength:
   Max: 200
   Exclude:
     - 'test/**/*'
+
+Naming/FileName:
+  Exclude:
+    - 'lib/i18n-embedded-references.rb'
