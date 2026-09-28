@@ -147,9 +147,45 @@ ignore_missing:
 The same options exist as flags: `--fallback ca:es`, `--default-fallback es`,
 `--ignore-missing 'custom_translations.*'`, `--quiet`.
 
-In Rails the task `rake i18n:embedded_references:check` is available
-(`PATHS="a b"` and `CONFIG=file` override the config). Elsewhere, add
-`require 'i18n/embedded_references/tasks'` to your Rakefile.
+In Rails, prefer the rake task: it boots the app and reads `I18n.fallbacks`,
+so the checker follows the same fallback chains as runtime without repeating
+them as flags:
+
+```bash
+bin/rake i18n:embedded_references:check \
+  PATHS="config/locales packs/**/config/locales" \
+  IGNORE_MISSING="custom_translations.*"
+```
+
+```
+Using fallbacks from I18n.fallbacks (18 locales, defaults: es)
+79 errors, 0 warnings, 23904 references checked in 20668 files (6.6s)
+```
+
+Fallbacks are only taken from the app when its backend actually includes
+`I18n::Backend::Fallbacks` (what `config.i18n.fallbacks` does). Each app chain
+(`I18n.fallbacks[locale]`) is already the full runtime chain, so it is used in
+its own order, without inserting the regional parent. Precedence is flags >
+config file > app: a locale given in `fallbacks` (config or `CONFIG=file`)
+ignores the app chain and the app defaults, and the app defaults only apply to
+locales without an app chain. `APP_FALLBACKS=false` skips booting the app. Keys resolved by another backend still have to be listed in
+`IGNORE_MISSING` (space separated globs): there is no way to infer them.
+Outside Rails, add `require 'i18n/embedded_references/tasks'` to your Rakefile.
+
+When the booted app does not use `I18n::Backend::Fallbacks`, the task checks
+without fallbacks (no regional parent either, only the ones given by flags or
+config) and says so:
+
+```
+App backend does not use I18n::Backend::Fallbacks (RAILS_ENV=test): checking without fallbacks
+```
+
+Mind the environment: Rails generates `production.rb` with
+`config.i18n.fallbacks = true`, but development and test leave it off, and the
+task usually runs in CI with `RAILS_ENV=test`. If production uses fallbacks and
+test does not, the task reports references that production resolves. Align
+`config.i18n.fallbacks` in test with production, or pass the fallbacks as
+flags or config.
 
 ## Differences from i18n-recursive-lookup
 

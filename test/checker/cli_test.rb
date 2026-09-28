@@ -20,8 +20,8 @@ class CLITest < Minitest::Test
     File.write(File.join(@dir, name), content)
   end
 
-  def run_cli(*argv)
-    I18n::EmbeddedReferences::CLI.new(out: @out, err: @err).run(argv)
+  def run_cli(*argv, app_fallbacks: nil)
+    I18n::EmbeddedReferences::CLI.new(out: @out, err: @err, app_fallbacks: app_fallbacks).run(argv)
   end
 
   def test_exit_zero_when_clean
@@ -55,6 +55,41 @@ class CLITest < Minitest::Test
     write('en.yml', "en:\n  hi: 'Hello ${name}'\n")
     assert_equal 1, run_cli('check', @dir)
     assert_equal 0, run_cli('check', @dir, '--default-fallback', 'es')
+  end
+
+  def test_app_fallbacks_resolve_references
+    write('es.yml', "es:\n  name: Acme\n")
+    write('pt.yml', "pt:\n  hi: 'Ola ${name}'\n")
+    assert_equal 1, run_cli('check', @dir)
+    app = { chains: { 'pt' => %w[pt es] }, default_fallbacks: %w[es] }
+    assert_equal 0, run_cli('check', @dir, app_fallbacks: app)
+  end
+
+  def test_flags_override_app_fallbacks_for_a_locale
+    write('es.yml', "es:\n  name: Acme\n")
+    write('pt.yml', "pt:\n  hi: 'Ola ${name}'\n")
+    app = { chains: { 'pt' => %w[pt es] }, default_fallbacks: %w[es] }
+    assert_equal 0, run_cli('check', @dir, app_fallbacks: app)
+    # The override replaces the whole app chain, defaults included: `name`
+    # only exists in `es`, which is no longer reachable from `pt`.
+    assert_equal 1, run_cli('check', @dir, '--fallback', 'pt:en', app_fallbacks: app)
+    assert_match(/not found in pt, en\)/, @out.string)
+  end
+
+  def test_app_defaults_apply_to_locales_without_an_app_chain
+    write('es.yml', "es:\n  name: Acme\n")
+    write('fr.yml', "fr:\n  hi: 'Salut ${name}'\n")
+    app = { chains: { 'pt' => %w[pt es] }, default_fallbacks: %w[es] }
+    assert_equal 0, run_cli('check', @dir, app_fallbacks: app)
+  end
+
+  def test_app_without_fallbacks_drops_the_regional_parent
+    write('es.yml', "es:\n  name: Acme\n")
+    write('es-CL.yml', "es-CL:\n  hi: 'Hola ${name}'\n")
+    assert_equal 0, run_cli('check', @dir)
+    app = { enabled: false, chains: {}, default_fallbacks: [] }
+    assert_equal 1, run_cli('check', @dir, app_fallbacks: app)
+    assert_equal 0, run_cli('check', @dir, '--fallback', 'es-CL:es', app_fallbacks: app)
   end
 
   def test_config_file
