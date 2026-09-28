@@ -137,6 +137,12 @@ class EmbeddedReferencesTest < BackendTestCase
     assert_equal 'hello world', I18n.t(:greeting)
   end
 
+  def test_explicit_locale_option_is_used_for_every_reference
+    store(:en, first: 'first-en', second: 'second-en')
+    store(:de, first: 'first-de', second: 'second-de', both: '${first} and ${second}')
+    assert_equal 'first-de and second-de', I18n.t(:both, locale: :de)
+  end
+
   def test_translate_with_scope_option
     store(:en, admin: { name: 'root', greeting: 'hi ${admin.name}' })
     assert_equal 'hi root', I18n.t(:greeting, scope: :admin)
