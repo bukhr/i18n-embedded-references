@@ -14,9 +14,17 @@ module I18n
     #
     # References are resolved through `I18n.translate`, with the locale that
     # was originally requested, so fallback chains and backend chains are
-    # honoured for the referenced key as well as for the referencing one.
+    # honoured for the referenced key as well as for the referencing one. The
+    # requested locale is taken from the `fallback_original_locale` option
+    # that `I18n::Backend::Fallbacks` passes down (i18n >= 1.9), so it works
+    # whether Fallbacks sits on this backend or on a Chain above it.
     # Resolution happens before interpolation and pluralization, so a
     # referenced value may itself contain `%{}` placeholders.
+    #
+    # A missing referenced key makes a string translation missing (the
+    # MissingTranslation names the absent key). Inside hashes and arrays the
+    # missing reference is handled per element by the standard exception
+    # handler, so one broken value does not take the whole structure down.
     module EmbeddedReferences
       class CircularReferenceError < I18n::ArgumentError
         def initialize(chain)
@@ -40,7 +48,7 @@ module I18n
       ].freeze
 
       def translate(locale, key, options = EMPTY_HASH)
-        with_requested_locale(locale) { super }
+        with_requested_locale(options[:fallback_original_locale] || locale) { super }
       end
 
       protected
@@ -49,44 +57,47 @@ module I18n
         result = super
         return result unless result.is_a?(String) || result.is_a?(Hash) || result.is_a?(Array)
 
-        resolve_embedded(result, options)
+        resolve_embedded(result, options, nested: false)
       end
 
       private
 
       # Records the locale of the outermost translate call so that nested
       # reference lookups use it instead of whatever fallback locale the
-      # referencing translation was found in.
+      # referencing translation was found in. Only the call that set the
+      # locale clears it: nested calls re-enter with the same locale and must
+      # not wipe it before the remaining references are resolved.
       def with_requested_locale(locale)
-        return yield if Thread.current[REQUESTED_LOCALE_KEY]
-
-        Thread.current[REQUESTED_LOCALE_KEY] = locale
+        owner = Thread.current[REQUESTED_LOCALE_KEY].nil?
+        Thread.current[REQUESTED_LOCALE_KEY] = locale if owner
         yield
       ensure
-        Thread.current[REQUESTED_LOCALE_KEY] = nil if Thread.current[REQUESTED_LOCALE_KEY] == locale
+        Thread.current[REQUESTED_LOCALE_KEY] = nil if owner
       end
 
       def requested_locale
         Thread.current[REQUESTED_LOCALE_KEY] || I18n.locale
       end
 
-      def resolve_embedded(subject, options)
+      # `nested` is true for values found inside a hash or array.
+      def resolve_embedded(subject, options, nested:)
         case subject
         when Hash
-          subject.each_with_object({}) { |(k, v), h| h[k] = resolve_embedded(v, options) }
+          subject.each_with_object({}) { |(k, v), h| h[k] = resolve_embedded(v, options, nested: true) }
         when Array
-          subject.map { |v| resolve_embedded(v, options) }
+          subject.map { |v| resolve_embedded(v, options, nested: true) }
         when String
-          resolve_string(subject, options)
+          resolve_string(subject, options, nested: nested)
         else
           subject
         end
       end
 
-      def resolve_string(string, options)
+      def resolve_string(string, options, nested:)
         return string unless string.match?(TOKENIZER)
 
-        resolved = string.split(TOKENIZER).reject(&:empty?).map { |token| resolve_token(token, options) }
+        tokens = string.split(TOKENIZER).reject(&:empty?)
+        resolved = tokens.map { |token| resolve_token(token, options, nested: nested) }
 
         # A translation consisting of a single reference keeps the referenced
         # value as-is, so `${some.hash}` and `${some.array}` return structures.
@@ -95,15 +106,15 @@ module I18n
         resolved.join
       end
 
-      def resolve_token(token, options)
+      def resolve_token(token, options, nested:)
         match = token.match(REFERENCE)
         return token unless match
         return token[1..] if match[1] # `$${key}` escapes to the literal `${key}`
 
-        resolve_reference(match[2], options)
+        resolve_reference(match[2], options, nested: nested)
       end
 
-      def resolve_reference(key, options)
+      def resolve_reference(key, options, nested:)
         locale = requested_locale
         stack = (Thread.current[RESOLUTION_STACK_KEY] ||= [])
         entry = "#{locale}.#{key}"
@@ -111,10 +122,12 @@ module I18n
 
         stack.push(entry)
         forwarded = options.reject { |k, _| NOT_FORWARDED_OPTIONS.include?(k) }
-        # A missing referenced key makes the referencing translation missing;
-        # `throw: true` hands the MissingTranslation to the outermost translate
-        # call, which applies the caller's raise/throw/exception handler.
-        I18n.translate(key, **forwarded, locale: locale, throw: true)
+        # For a string translation, `throw: true` hands the MissingTranslation
+        # of the referenced key to the outermost translate call, which applies
+        # the caller's raise/throw/exception handler. Inside a structure the
+        # element is resolved on its own so the rest of the hash or array
+        # survives a broken reference.
+        I18n.translate(key, **forwarded, locale: locale, throw: !nested)
       ensure
         stack.pop
         Thread.current[RESOLUTION_STACK_KEY] = nil if stack.empty?

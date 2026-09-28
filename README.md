@@ -38,19 +38,10 @@ require 'i18n/embedded_references'
 I18n::Backend::Simple.include(I18n::Backend::EmbeddedReferences)
 ```
 
-If you also use `I18n::Backend::Fallbacks`, include `EmbeddedReferences` after
-it so it wraps the whole fallback chain:
-
-```ruby
-class MyBackend < I18n::Backend::Simple
-  include I18n::Backend::Fallbacks
-  include I18n::Backend::EmbeddedReferences
-end
-```
-
-Rails includes `Fallbacks` on its own when `config.i18n.fallbacks` is set; in
-that case `I18n::Backend::Simple.include(I18n::Backend::EmbeddedReferences)`
-from an initializer is enough.
+It works with `I18n::Backend::Fallbacks` wherever that is included: on the
+same backend, or on a `Chain` above it (which is what Rails does with
+`config.i18n.fallbacks`, so the initializer line above is all Rails needs).
+Requires i18n >= 1.9.
 
 ## Syntax
 
@@ -103,9 +94,11 @@ I18n.t(:alert, locale: :'en-CL') # => "alert notice-cl"
 Explicit `locale:` options and `I18n::Backend::Chain` are honoured the same way.
 
 **Missing references.** A missing referenced key makes the referencing
-translation missing. Your usual `raise:`, `throw:` and exception handler apply,
-and the message names the key that is actually absent
-(`Translation missing: en.company`).
+string translation missing. Your usual `raise:`, `throw:` and exception handler
+apply, and the message names the key that is actually absent
+(`Translation missing: en.company`). Inside a hash or array (`I18n.t(:scope)`)
+each element is resolved on its own, so a broken reference in one value does
+not take the whole structure down.
 
 **No write-back.** Resolved values are never stored back into the translation
 store, so `store_translations` at runtime is picked up on the next lookup and
