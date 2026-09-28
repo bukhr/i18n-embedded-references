@@ -11,6 +11,14 @@
   missing.
 - `require 'i18n-embedded-references'` (Bundler's default autorequire for
   the gem name) now works; `require 'i18n/embedded_references'` stays valid.
+- `rake i18n:embedded_references:check` boots the app when an `:environment`
+  task exists and mirrors `I18n.fallbacks`, so Rails apps no longer need
+  `--default-fallback`/`--fallback`. App chains are used in their own order.
+  Precedence is flags > config file > app: a locale configured there ignores
+  the app chain and defaults. `APP_FALLBACKS=false` disables it. When the
+  app's backend does not include `I18n::Backend::Fallbacks`, the task checks
+  without fallbacks (no regional parent) and prints a warning naming the
+  environment. New `IGNORE_MISSING` variable for the task.
 
 ## 1.1.0
 
