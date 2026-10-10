@@ -197,9 +197,29 @@ class CheckerTest < Minitest::Test
     assert_match(/not found in pt, en\)/, report.problems.first.message)
   end
 
-  def test_app_chain_starts_with_the_locale
-    checker = I18n::EmbeddedReferences::Checker.new([], app_chains: { 'de-AT' => %w[de-DE de] })
-    assert_equal %w[de-AT de-DE de], checker.chain('de-AT')
+  # `I18n.fallbacks[locale]` is exactly what the backend walks at runtime, so
+  # the checker must not prepend the locale when the app chain omits it.
+  def test_app_chain_is_used_verbatim
+    checker = I18n::EmbeddedReferences::Checker.new([], app_chains: { 'pt' => %w[en] })
+    assert_equal %w[en], checker.chain('pt')
+  end
+
+  # Runtime resolves `thing` from `en` (a string), never from `pt` (a hash).
+  def test_app_chain_without_the_locale_skips_the_locale_scope
+    write('pt.yml', "pt:\n  thing: { a: 'x' }\n  msg: 'x ${thing}'\n")
+    write('en.yml', "en:\n  thing: 'word'\n")
+    assert_equal [:scope], kinds(check(fallbacks: { 'pt' => %w[en] }))
+    assert check(app_chains: { 'pt' => %w[en] }).ok?
+  end
+
+  # Runtime never looks at `pt`, so a key defined only there is unreachable.
+  def test_app_chain_without_the_locale_does_not_resolve_in_the_locale
+    write('pt.yml', "pt:\n  only_pt: 'v'\n  msg: '${only_pt}'\n")
+    write('en.yml', "en:\n  other: 'w'\n")
+    assert check(fallbacks: { 'pt' => %w[en] }).ok?
+    report = check(app_chains: { 'pt' => %w[en] })
+    assert_equal [:broken], kinds(report)
+    assert_match(/not found in en\)/, report.problems.first.message)
   end
 
   def test_configured_fallbacks_override_app_chain_and_defaults
