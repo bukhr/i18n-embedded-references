@@ -130,10 +130,16 @@ bundle exec i18n-embedded-references check config/locales packs/**/config/locale
 
 ```
 config/locales/en.yml
-  en.formulas.categories.sobretiempos.description
-    error: broken reference ${{custom_translations.models.employee.one} (not found in en, es)
+  en.footer.legal
+    error: broken reference ${company_name} (not found in en)
+  en.nav.label
+    error: reference ${menu} is embedded in text but points to a hash or array
 
-78 errors, 0 warnings, 21682 references checked in 19176 files (4.5s)
+config/locales/es-CL.yml
+  es-CL.welcome
+    error: broken reference ${compnay} (not found in es-CL, es)
+
+3 errors, 0 warnings, 142 references checked in 12 files (0.1s)
 ```
 
 Exit status is 1 when there are errors, so it drops straight into CI.
@@ -167,8 +173,8 @@ bin/rake i18n:embedded_references:check \
 ```
 
 ```
-Using fallbacks from I18n.fallbacks (18 locales, defaults: es)
-79 errors, 0 warnings, 23904 references checked in 20668 files (6.6s)
+Using fallbacks from I18n.fallbacks (4 locales, defaults: es)
+3 errors, 0 warnings, 142 references checked in 12 files (1.8s)
 ```
 
 Fallbacks are only taken from the app when its backend actually includes
