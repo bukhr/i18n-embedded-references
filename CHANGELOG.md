@@ -13,6 +13,9 @@
 - Inside hashes and arrays a missing referenced key is handled per element
   by the standard exception handler instead of making the whole structure
   missing.
+- `I18n.exists?` no longer resolves references, it only tells whether the
+  key is defined. Before, a broken reference raised `UncaughtThrowError` and
+  references resolved with `I18n.locale` instead of the given locale.
 - `require 'i18n-embedded-references'` (Bundler's default autorequire for
   the gem name) now works; `require 'i18n/embedded_references'` stays valid.
 - `rake i18n:embedded_references:check` boots the app when an `:environment`
