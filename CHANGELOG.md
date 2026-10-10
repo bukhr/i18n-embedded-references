@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.1
+
+- Gem description mentions the static checker and describes the gem as a
+  maintained alternative to i18n-recursive-lookup rather than its successor.
+  No code changes.
+
 ## 1.2.0
 
 - The requested locale is taken from the `fallback_original_locale` option
@@ -45,7 +51,7 @@
 
 ## 1.0.0
 
-Initial release. Successor of [i18n-recursive-lookup](https://github.com/annkissam/i18n-recursive-lookup),
+Initial release. A maintained alternative to [i18n-recursive-lookup](https://github.com/annkissam/i18n-recursive-lookup),
 rewritten without ActiveSupport.
 
 - `${key}` references inside strings, hashes and arrays, resolved recursively.

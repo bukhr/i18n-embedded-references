@@ -17,7 +17,7 @@ I18n.t(:'footer.legal') # => "Acme Corp is a registered trademark."
 
 Change `company` once and every translation that embeds it follows.
 
-This gem is the successor of [i18n-recursive-lookup](https://github.com/annkissam/i18n-recursive-lookup),
+This gem is a maintained alternative to [i18n-recursive-lookup](https://github.com/annkissam/i18n-recursive-lookup),
 which has been unmaintained since 2015. It keeps the `${}` syntax, drops the
 ActiveSupport dependency, resolves references recursively with cycle detection,
 and is locale-aware when fallbacks are in play.

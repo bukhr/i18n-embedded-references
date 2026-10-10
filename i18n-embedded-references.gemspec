@@ -11,9 +11,11 @@ Gem::Specification.new do |spec|
   spec.summary       = 'Reference other translations from inside a translation with ${key}.'
   spec.description   = <<~DESC
     An I18n backend extension that lets a translation embed other translations
-    using the `${some.key}` marker. References are resolved lazily on lookup,
-    recursively, with cycle detection and fallback-aware locale resolution.
-    Works with strings, hashes and arrays. Successor of i18n-recursive-lookup.
+    with ${some.key}. References resolve on lookup, recursively, with cycle
+    detection and in the requested locale when fallbacks apply. Works with
+    strings, hashes and arrays. Ships a static checker (CLI and rake task) that
+    finds broken and circular references in locale files. A maintained
+    alternative to i18n-recursive-lookup, with the same syntax.
   DESC
   spec.homepage      = 'https://github.com/bukhr/i18n-embedded-references'
   spec.license       = 'MIT'
