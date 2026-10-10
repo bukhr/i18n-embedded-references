@@ -1,0 +1,30 @@
+name: Release
+
+# Publishes the gem to RubyGems.org when a version tag is pushed, using
+# trusted publishing (OIDC): no API key is stored in the repository.
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+      - name: Check the tag matches the gem version
+        run: |
+          version=$(ruby -r ./lib/i18n/embedded_references/version -e 'print I18n::EmbeddedReferences::VERSION')
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match version $version"
+            exit 1
+          fi
+      - run: bundle exec rake test
+      - uses: rubygems/release-gem@v1
