@@ -20,7 +20,9 @@
   the gem name) now works; `require 'i18n/embedded_references'` stays valid.
 - `rake i18n:embedded_references:check` boots the app when an `:environment`
   task exists and mirrors `I18n.fallbacks`, so Rails apps no longer need
-  `--default-fallback`/`--fallback`. App chains are used in their own order.
+  `--default-fallback`/`--fallback`. App chains are used verbatim, in their
+  own order and without prepending the locale when the chain does not start
+  with it, since that is exactly what the backend walks at runtime.
   Precedence is flags > config file > app: a locale configured there ignores
   the app chain and defaults. `APP_FALLBACKS=false` disables it. When the
   app's backend does not include `I18n::Backend::Fallbacks`, the task checks

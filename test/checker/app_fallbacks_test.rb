@@ -47,6 +47,24 @@ class AppFallbacksTest < BackendTestCase
     assert_equal %w[de-AT de-DE de], app[:chains]['de-AT']
   end
 
+  # A custom `#[]` that leaves the locale out of its own chain: the checker
+  # must see the chain the backend walks, not a repaired one.
+  class SkippingFallbacks
+    def [](locale)
+      locale.to_s == 'pt' ? [:en] : [locale.to_sym]
+    end
+  end
+
+  def test_custom_fallbacks_chain_without_the_locale_is_kept_as_is
+    I18n.backend = FallbacksBackend.new
+    I18n.available_locales = %i[en pt]
+    I18n.fallbacks = SkippingFallbacks.new
+    app = I18n::EmbeddedReferences::AppFallbacks.from_i18n
+
+    assert_equal %w[en], app[:chains]['pt']
+    assert_equal %w[en], app[:chains]['en']
+  end
+
   def test_describe
     app = { enabled: true, chains: { 'pt' => %w[pt es] }, default_fallbacks: %w[es] }
     assert_equal 'Using fallbacks from I18n.fallbacks (1 locales, defaults: es)',

@@ -179,8 +179,10 @@ Using fallbacks from I18n.fallbacks (4 locales, defaults: es)
 
 Fallbacks are only taken from the app when its backend actually includes
 `I18n::Backend::Fallbacks` (what `config.i18n.fallbacks` does). Each app chain
-(`I18n.fallbacks[locale]`) is already the full runtime chain, so it is used in
-its own order, without inserting the regional parent. Precedence is flags >
+(`I18n.fallbacks[locale]`) is exactly what the backend walks at runtime, so it
+is used verbatim: in its own order, without inserting the regional parent, and
+without prepending the locale if the chain does not start with it (a custom
+fallbacks object may return `[:en]` for `:pt`). Precedence is flags >
 config file > app: a locale given in `fallbacks` (config or `CONFIG=file`)
 ignores the app chain and the app defaults, and the app defaults only apply to
 locales without an app chain. `APP_FALLBACKS=false` skips booting the app. Keys resolved by another backend still have to be listed in

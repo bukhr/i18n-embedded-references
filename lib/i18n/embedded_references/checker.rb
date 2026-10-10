@@ -22,9 +22,10 @@ module I18n
     # globs for keys resolved elsewhere (another backend, a database, ...).
     #
     # `app_chains` and `app_default_fallbacks` hold the fallbacks of the
-    # running app (see AppFallbacks). An app chain is already the full runtime
-    # chain, so it is used as is, without inserting the regional parent. A
-    # locale listed in `fallbacks` ignores the app entirely. When the app runs
+    # running app (see AppFallbacks). An app chain is exactly what the runtime
+    # walks, so it is used verbatim: no regional parent is inserted and the
+    # locale itself is not prepended when the chain omits it. A locale listed
+    # in `fallbacks` ignores the app entirely. When the app runs
     # without I18n::Backend::Fallbacks, `app_fallbacks_disabled` drops the
     # regional parent for the other locales: their chain is only the locale
     # plus the `default_fallbacks` given by the user.
@@ -60,7 +61,7 @@ module I18n
       # @param fallbacks [Hash{String => Array<String>}] extra fallbacks per locale
       # @param default_fallbacks [Array<String>] locales appended to every chain
       # @param ignore_missing [Array<String>] key globs whose absence is not an error
-      # @param app_chains [Hash{String => Array<String>}] full runtime chain per locale
+      # @param app_chains [Hash{String => Array<String>}] runtime chain per locale, used verbatim
       # @param app_default_fallbacks [Array<String>] app defaults for locales without a chain
       # @param app_fallbacks_disabled [Boolean] the app runs without fallbacks
       def initialize(paths, fallbacks: {}, default_fallbacks: [], ignore_missing: [], # rubocop:disable Metrics/ParameterLists
@@ -93,25 +94,26 @@ module I18n
       end
 
       # Fallbacks given for the locale (flags or config) win over the app; an
-      # app chain is used in its own order; an app without fallbacks only
-      # keeps the user defaults; otherwise the regional parent and the
-      # defaults apply.
+      # app chain is the runtime chain itself (`I18n.fallbacks[locale]`), so it
+      # is used verbatim, without prepending the locale when the chain omits
+      # it; an app without fallbacks only keeps the user defaults; otherwise
+      # the regional parent and the defaults apply.
       def chain(locale)
         @chains ||= {}
-        @chains[locale] ||= ([locale] + fallback_locales(locale)).uniq
+        @chains[locale] ||= build_chain(locale).uniq
       end
 
       private
 
-      def fallback_locales(locale)
+      def build_chain(locale)
         if fallbacks.key?(locale)
-          regional_parent(locale) + fallbacks[locale] + default_fallbacks
+          [locale] + regional_parent(locale) + fallbacks[locale] + default_fallbacks
         elsif app_fallbacks_disabled
-          default_fallbacks
+          [locale] + default_fallbacks
         elsif app_chains.key?(locale)
           app_chains[locale] + default_fallbacks
         else
-          regional_parent(locale) + default_fallbacks + app_default_fallbacks
+          [locale] + regional_parent(locale) + default_fallbacks + app_default_fallbacks
         end
       end
 
