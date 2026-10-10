@@ -207,6 +207,16 @@ bundle exec rake test
 bundle exec rubocop
 ```
 
+To release, bump `VERSION` in `lib/i18n/embedded_references/version.rb`, add
+the entry to `CHANGELOG.md`, merge, and push a tag with the same version:
+
+```bash
+git tag v1.2.0 && git push origin v1.2.0
+```
+
+The `Release` workflow checks that the tag matches the version, runs the
+tests and publishes to RubyGems.org through trusted publishing.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
