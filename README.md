@@ -52,6 +52,10 @@ Requires i18n >= 1.9.
 | `"${some.hash}"`       | the hash itself, when the string is only that ref  |
 | `"${some.array}"`      | the array itself, when the string is only that ref |
 
+The key is taken verbatim: `${ some.key }` refers to `" some.key "`, not to
+`some.key`. Only an exact `"${some.hash}"` returns the structure; with any
+text around it, whitespace included, the value is spliced into a string.
+
 References are resolved anywhere in the translation tree: in plain strings,
 inside hashes returned by `I18n.t(:some_scope)`, and inside arrays.
 

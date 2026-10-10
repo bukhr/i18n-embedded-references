@@ -38,6 +38,16 @@ class EmbeddedReferencesTest < BackendTestCase
     assert_equal %w[mon tue], I18n.t(:alias)
   end
 
+  def test_whitespace_inside_a_reference_is_part_of_the_key
+    store(:en, name: 'world', greeting: 'hello ${ name }')
+    assert_match(/translation missing/i, I18n.t(:greeting))
+  end
+
+  def test_single_reference_with_surrounding_text_is_spliced_into_a_string
+    store(:en, colors: { red: 'Red' }, alias: ' ${colors}')
+    assert_kind_of String, I18n.t(:alias)
+  end
+
   def test_broken_reference_inside_hash_only_affects_that_element
     store(:en, name: 'Alice', messages: { hi: 'hi ${name}', bad: 'x ${nope}' })
     result = I18n.t(:messages)

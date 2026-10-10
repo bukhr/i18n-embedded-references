@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'i18n'
+require_relative '../embedded_references/syntax'
 
 module I18n
   module Backend
@@ -31,9 +32,6 @@ module I18n
           super("circular embedded reference: #{chain.join(' -> ')}")
         end
       end
-
-      TOKENIZER = /(\$\$\{[^}]+\}|\$\{[^}]+\})/.freeze
-      REFERENCE = /\A(\$)?\$\{([^}]+)\}\z/.freeze
 
       REQUESTED_LOCALE_KEY = :i18n_embedded_references_requested_locale
       RESOLUTION_STACK_KEY = :i18n_embedded_references_stack
@@ -94,24 +92,16 @@ module I18n
       end
 
       def resolve_string(string, options, nested:)
-        return string unless string.match?(TOKENIZER)
+        return string unless I18n::EmbeddedReferences::Syntax.markers?(string)
 
-        tokens = string.split(TOKENIZER).reject(&:empty?)
-        resolved = tokens.map { |token| resolve_token(token, options, nested: nested) }
+        tokens = I18n::EmbeddedReferences::Syntax.tokenize(string)
+        resolved = tokens.map do |token|
+          token.is_a?(String) ? token : resolve_reference(token.key, options, nested: nested)
+        end
 
         # A translation consisting of a single reference keeps the referenced
         # value as-is, so `${some.hash}` and `${some.array}` return structures.
-        return resolved.first if resolved.size == 1 && !resolved.first.is_a?(String)
-
-        resolved.join
-      end
-
-      def resolve_token(token, options, nested:)
-        match = token.match(REFERENCE)
-        return token unless match
-        return token[1..] if match[1] # `$${key}` escapes to the literal `${key}`
-
-        resolve_reference(match[2], options, nested: nested)
+        I18n::EmbeddedReferences::Syntax.single_reference?(tokens) ? resolved.first : resolved.join
       end
 
       def resolve_reference(key, options, nested:)

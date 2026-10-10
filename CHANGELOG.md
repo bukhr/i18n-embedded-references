@@ -23,6 +23,12 @@
   app's backend does not include `I18n::Backend::Fallbacks`, the task checks
   without fallbacks (no regional parent) and prints a warning naming the
   environment. New `IGNORE_MISSING` variable for the task.
+- The checker and the backend share one grammar for `${key}`
+  (`I18n::EmbeddedReferences::Syntax`), so they no longer disagree: the
+  checker takes the key verbatim (`${ name }` is reported as broken, like the
+  runtime treats it), only an exact `${key}` counts as a whole-string
+  reference (`" ${menu}"` is a scope error), and references in hashes inside
+  arrays are checked too.
 
 ## 1.1.0
 

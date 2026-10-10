@@ -3,6 +3,7 @@
 require 'yaml'
 require 'set'
 require 'date'
+require_relative 'syntax'
 
 module I18n
   module EmbeddedReferences
@@ -48,7 +49,6 @@ module I18n
         end
       end
 
-      REFERENCE = /(\$)?\$\{([^}]+)\}/.freeze
       YAML_CLASSES = [Symbol, Date, Time].freeze
       EMPTY_HASH = {}.freeze
       EMPTY_SET = Set.new.freeze
@@ -254,18 +254,17 @@ module I18n
         case value
         when String then yield value
         when Array then value.each { |v| each_string(v, &block) }
+        when Hash then value.each_value { |v| each_string(v, &block) }
         end
       end
 
       # Returns [[key, whole_string?], ...] skipping escaped `$${}` markers.
       def scan(string)
-        return [] unless string.include?('${')
+        return [] unless Syntax.markers?(string)
 
-        refs = string.to_enum(:scan, REFERENCE).map { Regexp.last_match }
-                     .reject { |m| m[1] }
-                     .map { |m| m[2].strip }
-        whole = refs.size == 1 && string.strip == "${#{refs.first}}"
-        refs.map { |ref| [ref, whole] }
+        tokens = Syntax.tokenize(string)
+        whole = Syntax.single_reference?(tokens)
+        tokens.grep(Syntax::Reference).map { |ref| [ref.key, whole] }
       end
 
       def ignored?(ref)
