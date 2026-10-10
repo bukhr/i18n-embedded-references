@@ -19,6 +19,14 @@ module I18n
     # extended per locale, and `default_fallbacks` are appended to every chain
     # (the equivalent of `I18n.fallbacks = [:es]`). `ignore_missing` takes key
     # globs for keys resolved elsewhere (another backend, a database, ...).
+    #
+    # `app_chains` and `app_default_fallbacks` hold the fallbacks of the
+    # running app (see AppFallbacks). An app chain is already the full runtime
+    # chain, so it is used as is, without inserting the regional parent. A
+    # locale listed in `fallbacks` ignores the app entirely. When the app runs
+    # without I18n::Backend::Fallbacks, `app_fallbacks_disabled` drops the
+    # regional parent for the other locales: their chain is only the locale
+    # plus the `default_fallbacks` given by the user.
     class Checker
       Problem = Struct.new(:kind, :severity, :locale, :key, :file, :message, keyword_init: true) do
         def error?
@@ -45,17 +53,25 @@ module I18n
       EMPTY_HASH = {}.freeze
       EMPTY_SET = Set.new.freeze
 
-      attr_reader :fallbacks, :default_fallbacks, :ignore_missing
+      attr_reader :fallbacks, :default_fallbacks, :ignore_missing, :app_chains, :app_default_fallbacks,
+                  :app_fallbacks_disabled
 
       # @param paths [Array<String>] files, directories or globs
       # @param fallbacks [Hash{String => Array<String>}] extra fallbacks per locale
       # @param default_fallbacks [Array<String>] locales appended to every chain
       # @param ignore_missing [Array<String>] key globs whose absence is not an error
-      def initialize(paths, fallbacks: {}, default_fallbacks: [], ignore_missing: [])
+      # @param app_chains [Hash{String => Array<String>}] full runtime chain per locale
+      # @param app_default_fallbacks [Array<String>] app defaults for locales without a chain
+      # @param app_fallbacks_disabled [Boolean] the app runs without fallbacks
+      def initialize(paths, fallbacks: {}, default_fallbacks: [], ignore_missing: [], # rubocop:disable Metrics/ParameterLists
+                     app_chains: {}, app_default_fallbacks: [], app_fallbacks_disabled: false)
         @paths = Array(paths)
-        @fallbacks = fallbacks.to_h { |k, v| [k.to_s, Array(v).map(&:to_s)] }
+        @fallbacks = string_lists(fallbacks)
         @default_fallbacks = Array(default_fallbacks).map(&:to_s)
         @ignore_missing = Array(ignore_missing).map(&:to_s)
+        @app_chains = string_lists(app_chains)
+        @app_default_fallbacks = Array(app_default_fallbacks).map(&:to_s)
+        @app_fallbacks_disabled = app_fallbacks_disabled
         @translations = {} # locale => { key => value }
         @origins = {}      # locale => { key => file }
         @scopes = {}       # locale => Set of keys that are hashes or arrays
@@ -76,15 +92,36 @@ module I18n
         )
       end
 
+      # Fallbacks given for the locale (flags or config) win over the app; an
+      # app chain is used in its own order; an app without fallbacks only
+      # keeps the user defaults; otherwise the regional parent and the
+      # defaults apply.
       def chain(locale)
         @chains ||= {}
-        @chains[locale] ||= begin
-          parent = locale.include?('-') ? [locale.split('-').first] : []
-          ([locale] + parent + fallbacks.fetch(locale, []) + default_fallbacks).uniq
-        end
+        @chains[locale] ||= ([locale] + fallback_locales(locale)).uniq
       end
 
       private
+
+      def fallback_locales(locale)
+        if fallbacks.key?(locale)
+          regional_parent(locale) + fallbacks[locale] + default_fallbacks
+        elsif app_fallbacks_disabled
+          default_fallbacks
+        elsif app_chains.key?(locale)
+          app_chains[locale] + default_fallbacks
+        else
+          regional_parent(locale) + default_fallbacks + app_default_fallbacks
+        end
+      end
+
+      def regional_parent(locale)
+        locale.include?('-') ? [locale.split('-').first] : []
+      end
+
+      def string_lists(hash)
+        hash.to_h { |k, v| [k.to_s, Array(v).map(&:to_s)] }
+      end
 
       def expand_paths
         @paths.flat_map { |path| expand_path(path) }.uniq.sort

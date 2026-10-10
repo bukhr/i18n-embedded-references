@@ -159,4 +159,59 @@ class CheckerTest < Minitest::Test
     assert_equal %w[pt es], checker.chain('pt')
     assert_equal %w[es], checker.chain('es')
   end
+
+  def test_app_chains_are_used_in_their_own_order
+    checker = I18n::EmbeddedReferences::Checker.new([], app_chains: { 'de-AT' => %w[de-AT de-DE de] },
+                                                        app_default_fallbacks: %w[en])
+    assert_equal %w[de-AT de-DE de], checker.chain('de-AT')
+    assert_equal %w[fr-CA fr en], checker.chain('fr-CA')
+  end
+
+  # A custom I18n.fallbacks whose #[] does not include its #defaults: the chain
+  # is authoritative, so a key reachable only through the defaults is broken.
+  def test_app_defaults_are_not_appended_to_an_app_chain
+    write('es.yml', "es:\n  name: Acme\n")
+    write('pt.yml', "pt:\n  hi: 'Ola ${name}'\n")
+    report = check(app_chains: { 'pt' => %w[pt en] }, app_default_fallbacks: %w[es])
+    assert_equal [:broken], kinds(report)
+    assert_match(/not found in pt, en\)/, report.problems.first.message)
+  end
+
+  def test_app_chain_starts_with_the_locale
+    checker = I18n::EmbeddedReferences::Checker.new([], app_chains: { 'de-AT' => %w[de-DE de] })
+    assert_equal %w[de-AT de-DE de], checker.chain('de-AT')
+  end
+
+  def test_configured_fallbacks_override_app_chain_and_defaults
+    checker = I18n::EmbeddedReferences::Checker.new([], fallbacks: { 'pt' => %w[en] }, default_fallbacks: %w[fr],
+                                                        app_chains: { 'pt' => %w[pt es] },
+                                                        app_default_fallbacks: %w[es])
+    assert_equal %w[pt en fr], checker.chain('pt')
+  end
+
+  def test_app_chain_order_decides_which_target_is_checked
+    write('de-DE.yml', "de-DE:\n  thing: 'Ding'\n")
+    write('de.yml', "de:\n  thing: { a: 'x' }\n")
+    write('de-AT.yml', "de-AT:\n  hi: 'Servus ${thing}'\n")
+    assert_equal [:scope], kinds(check(fallbacks: { 'de-AT' => %w[de-DE] }))
+    assert check(app_chains: { 'de-AT' => %w[de-AT de-DE de] }).ok?
+  end
+
+  # The app runs without I18n::Backend::Fallbacks: `es-CL` does not fall back
+  # to `es` at runtime, so only explicit user defaults make `name` reachable.
+  def test_app_fallbacks_disabled_drops_the_regional_parent
+    write('es.yml', "es:\n  name: Acme\n")
+    write('es-CL.yml', "es-CL:\n  hi: 'Hola ${name}'\n")
+    report = check(app_fallbacks_disabled: true)
+    assert_equal [:broken], kinds(report)
+    assert_match(/not found in es-CL\)/, report.problems.first.message)
+    assert check(app_fallbacks_disabled: true, default_fallbacks: ['es']).ok?
+  end
+
+  def test_app_fallbacks_disabled_chain
+    checker = I18n::EmbeddedReferences::Checker.new([], app_fallbacks_disabled: true,
+                                                        fallbacks: { 'pt-BR' => %w[en] })
+    assert_equal %w[es-CL], checker.chain('es-CL')
+    assert_equal %w[pt-BR pt en], checker.chain('pt-BR')
+  end
 end

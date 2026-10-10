@@ -13,13 +13,20 @@ module I18n
     #     [--ignore-missing GLOB] [--quiet]
     #
     # Exit status: 0 clean, 1 errors found, 2 usage error.
+    #
+    # `app_fallbacks` (`{ enabled:, chains:, default_fallbacks: }`, see
+    # AppFallbacks) has the lowest precedence: a locale given in the config
+    # file or flags ignores the app chain and the app defaults. App chains are
+    # used as is. With `enabled: false` the app has no fallbacks, so the other
+    # locales get no regional parent either.
     class CLI
       CONFIG_FILE = '.i18n-embedded-references.yml'
       DEFAULT_PATHS = ['config/locales'].freeze
 
-      def initialize(out: $stdout, err: $stderr)
+      def initialize(out: $stdout, err: $stderr, app_fallbacks: nil)
         @out = out
         @err = err
+        @app_fallbacks = app_fallbacks
       end
 
       def run(argv)
@@ -30,9 +37,7 @@ module I18n
         options = parse(argv)
         return options if options.is_a?(Integer)
 
-        report = Checker.new(options[:paths], fallbacks: options[:fallbacks],
-                                              default_fallbacks: options[:default_fallbacks],
-                                              ignore_missing: options[:ignore_missing]).run
+        report = Checker.new(options[:paths], **checker_options(options)).run
         print_report(report, quiet: options[:quiet])
         report.ok? ? 0 : 1
       rescue OptionParser::ParseError => e
@@ -41,6 +46,16 @@ module I18n
       end
 
       private
+
+      def checker_options(options)
+        app = @app_fallbacks || {}
+        {
+          fallbacks: options[:fallbacks], default_fallbacks: options[:default_fallbacks],
+          ignore_missing: options[:ignore_missing],
+          app_chains: app.fetch(:chains, {}), app_default_fallbacks: app.fetch(:default_fallbacks, []),
+          app_fallbacks_disabled: app[:enabled] == false
+        }
+      end
 
       def parse(argv)
         options = { fallbacks: {}, default_fallbacks: [], ignore_missing: [], quiet: false, config: nil }
@@ -74,6 +89,8 @@ module I18n
       end
 
       # Command line values win over the config file; lists are concatenated.
+      # The app fallbacks are not merged here: Checker applies them only to
+      # the locales that neither of them configures.
       def merge_config(options, paths)
         config = load_config(options[:config])
         config.fetch('fallbacks', {}).each { |l, p| options[:fallbacks][l.to_s] ||= Array(p).map(&:to_s) }
