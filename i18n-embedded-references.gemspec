@@ -5,8 +5,8 @@ require_relative 'lib/i18n/embedded_references/version'
 Gem::Specification.new do |spec|
   spec.name          = 'i18n-embedded-references'
   spec.version       = I18n::EmbeddedReferences::VERSION
-  spec.authors       = ['Buk']
-  spec.email         = ['opensource@buk.cl']
+  spec.authors       = ['Jaime Arrieta']
+  spec.email         = ['contacto@buk.cl']
 
   spec.summary       = 'Reference other translations from inside a translation with ${key}.'
   spec.description   = <<~DESC
