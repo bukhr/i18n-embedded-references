@@ -148,6 +148,21 @@ class EmbeddedReferencesTest < BackendTestCase
     assert_equal 'hi root', I18n.t(:greeting, scope: :admin)
   end
 
+  def test_exists_does_not_resolve_references
+    store(:en, name: 'world', greeting: 'hello ${name}', broken: 'x ${nope}')
+    assert I18n.exists?(:greeting)
+    assert I18n.exists?(:broken)
+    refute I18n.exists?(:nope)
+    assert_equal 'hello world', I18n.t(:greeting)
+  end
+
+  def test_exists_with_a_locale_other_than_the_current_one
+    store(:de, only_de: 'nur', both: '${only_de}')
+    I18n.locale = :en
+    assert I18n.exists?(:both, :de)
+    refute I18n.exists?(:both, :en)
+  end
+
   def test_symbol_links_still_work
     store(:en, name: 'world', greeting: 'hello ${name}', link: :greeting)
     assert_equal 'hello world', I18n.t(:link)
@@ -173,6 +188,12 @@ class EmbeddedReferencesFallbacksTest < BackendTestCase
   def test_reference_uses_explicit_locale_option_over_current_locale
     I18n.locale = :en
     assert_equal 'en notice-cl', I18n.t(:only_en, locale: :'en-CL')
+  end
+
+  def test_exists_follows_fallbacks
+    I18n.locale = :en
+    assert I18n.exists?(:only_en, :'en-CL')
+    refute I18n.exists?(:missing, :'en-CL')
   end
 
   def test_reference_falls_back_when_missing_in_requested_locale

@@ -25,6 +25,9 @@ module I18n
     # MissingTranslation names the absent key). Inside hashes and arrays the
     # missing reference is handled per element by the standard exception
     # handler, so one broken value does not take the whole structure down.
+    #
+    # `exists?` does not resolve references: it answers whether the key is
+    # defined, like I18n does for interpolations.
     module EmbeddedReferences
       class CircularReferenceError < I18n::ArgumentError
         def initialize(chain)
@@ -37,6 +40,7 @@ module I18n
 
       REQUESTED_LOCALE_KEY = :i18n_embedded_references_requested_locale
       RESOLUTION_STACK_KEY = :i18n_embedded_references_stack
+      SKIP_RESOLUTION_KEY = :i18n_embedded_references_skip_resolution
 
       # Options that only make sense for the referencing lookup and must not
       # leak into the nested translate call. Everything else (interpolation
@@ -51,10 +55,22 @@ module I18n
         with_requested_locale(options[:fallback_original_locale] || locale) { super }
       end
 
+      # `Base#exists?` calls `lookup` outside `translate`, so resolving there
+      # would use `I18n.locale` instead of the given locale, and a broken
+      # reference would `throw` with nobody to catch it.
+      def exists?(locale, key, options = EMPTY_HASH)
+        previous = Thread.current[SKIP_RESOLUTION_KEY]
+        Thread.current[SKIP_RESOLUTION_KEY] = true
+        super
+      ensure
+        Thread.current[SKIP_RESOLUTION_KEY] = previous
+      end
+
       protected
 
       def lookup(locale, key, scope = [], options = EMPTY_HASH)
         result = super
+        return result if Thread.current[SKIP_RESOLUTION_KEY]
         return result unless result.is_a?(String) || result.is_a?(Hash) || result.is_a?(Array)
 
         resolve_embedded(result, options, nested: false)

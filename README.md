@@ -100,6 +100,11 @@ apply, and the message names the key that is actually absent
 each element is resolved on its own, so a broken reference in one value does
 not take the whole structure down.
 
+**`I18n.exists?` does not resolve references.** It tells whether the key is
+defined, the same way it ignores `%{}` placeholders, so a translation with a
+broken reference still exists. Use `I18n.t` or the checker below to find
+broken references.
+
 **No write-back.** Resolved values are never stored back into the translation
 store, so `store_translations` at runtime is picked up on the next lookup and
 the raw `${}` source is preserved in the backend.
