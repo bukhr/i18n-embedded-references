@@ -128,6 +128,26 @@ class CheckerTest < Minitest::Test
     assert_equal 'list', report.problems.first.key
   end
 
+  def test_references_inside_hashes_in_arrays_are_checked
+    write('es.yml', "es:\n  list:\n    - label: 'Chao ${nope}'\n")
+    report = check
+    assert_equal [:broken], kinds(report)
+    assert_equal 'list', report.problems.first.key
+  end
+
+  # The runtime looks up the key verbatim, so `${ name }` is not `${name}`.
+  def test_whitespace_inside_a_reference_is_part_of_the_key
+    write('es.yml', "es:\n  name: Acme\n  hi: 'Hola ${ name }'\n")
+    assert_equal [:broken], kinds(check)
+  end
+
+  # Only an exact `${key}` returns the structure; with text around it, even
+  # whitespace, the runtime splices it into a string.
+  def test_reference_to_scope_with_surrounding_whitespace_is_embedded
+    write('es.yml', "es:\n  menu: { a: 'x' }\n  bad: ' ${menu}'\n")
+    assert_equal [:scope], kinds(check)
+  end
+
   def test_unparseable_file_is_a_warning
     write('bad.yml', "es:\n  a: [unclosed\n")
     write('es.yml', "es:\n  ok: 'fine'\n")
