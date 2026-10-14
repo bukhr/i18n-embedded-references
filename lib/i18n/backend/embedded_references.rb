@@ -2,6 +2,7 @@
 
 require 'i18n'
 require_relative '../embedded_references/syntax'
+require_relative '../embedded_references/transforms'
 
 module I18n
   module Backend
@@ -29,12 +30,20 @@ module I18n
     #
     # `exists?` does not resolve references: it answers whether the key is
     # defined, like I18n does for interpolations.
+    #
+    # `${key|upcase}` applies a transform to the referenced text once it is
+    # fully resolved (see I18n::EmbeddedReferences::Transforms). An unknown
+    # transform name, or a transform on a reference whose value is a hash or
+    # an array, raises TransformError: both are mistakes in the locale files,
+    # like a cycle, not something to render.
     module EmbeddedReferences
       class CircularReferenceError < I18n::ArgumentError
         def initialize(chain)
           super("circular embedded reference: #{chain.join(' -> ')}")
         end
       end
+
+      class TransformError < I18n::ArgumentError; end
 
       REQUESTED_LOCALE_KEY = :i18n_embedded_references_requested_locale
       RESOLUTION_STACK_KEY = :i18n_embedded_references_stack
@@ -112,7 +121,10 @@ module I18n
 
         tokens = I18n::EmbeddedReferences::Syntax.tokenize(string)
         resolved = tokens.map do |token|
-          token.is_a?(String) ? token : resolve_reference(token.key, options, nested: nested)
+          next token if token.is_a?(String)
+
+          check_transforms(token)
+          transform(token, resolve_reference(token.key, options, nested: nested))
         end
 
         # A translation consisting of a single reference keeps the referenced
@@ -137,6 +149,23 @@ module I18n
       ensure
         stack.pop
         Thread.current[RESOLUTION_STACK_KEY] = nil if stack.empty?
+      end
+
+      # Checked before the lookup so a typo fails even if the key is missing.
+      def check_transforms(reference)
+        unknown = I18n::EmbeddedReferences::Transforms.unknown(reference.transforms)
+        return if unknown.empty?
+
+        raise TransformError, "unknown transform #{unknown.first.inspect} in #{reference.marker}"
+      end
+
+      # Applied after the reference is fully resolved (nested references
+      # included), so only `%{}` placeholders remain and those are preserved.
+      def transform(reference, value)
+        return value unless reference.transforms?
+        raise TransformError, "#{reference.marker} cannot transform a hash or array" unless value.is_a?(String)
+
+        I18n::EmbeddedReferences::Transforms.apply(reference.transforms, value)
       end
     end
   end

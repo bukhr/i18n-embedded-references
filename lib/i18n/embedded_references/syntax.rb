@@ -6,17 +6,36 @@ module I18n
     # agree on what a reference is.
     #
     # - `${some.key}` is a reference to `some.key`, taken verbatim (no strip)
+    # - `${some.key|upcase}` applies a transform to the referenced text;
+    #   `${some.key|downcase|upcase_first}` chains them left to right
     # - `$${some.key}` is the literal text `${some.key}`
     # - `${}` is not a reference
+    #
+    # Transform names are taken verbatim too and validated elsewhere (see
+    # Transforms): the grammar only splits them off the key.
     #
     # A string that is exactly one reference (no surrounding text, not even
     # whitespace) stands for the referenced value itself, which may be a hash
     # or an array.
     module Syntax
-      Reference = Struct.new(:key)
+      Reference = Struct.new(:key, :transforms) do
+        def initialize(key, transforms = [])
+          super
+        end
+
+        def transforms?
+          !transforms.empty?
+        end
+
+        # The reference as written, for messages: `${key|upcase}`.
+        def marker
+          "${#{[key, *transforms].join(TRANSFORM_SEPARATOR)}}"
+        end
+      end
 
       TOKENIZER = /(\$\$\{[^}]+\}|\$\{[^}]+\})/.freeze
       TOKEN = /\A(\$)?\$\{([^}]+)\}\z/.freeze
+      TRANSFORM_SEPARATOR = '|'
 
       module_function
 
@@ -35,7 +54,8 @@ module I18n
           next token unless match
           next token[1..] if match[1] # `$${key}` escapes to the literal `${key}`
 
-          Reference.new(match[2])
+          key, *transforms = match[2].split(TRANSFORM_SEPARATOR, -1)
+          Reference.new(key, transforms)
         end
       end
 

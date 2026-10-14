@@ -48,6 +48,7 @@ Requires i18n >= 1.9.
 | Written                | Result                                             |
 |------------------------|----------------------------------------------------|
 | `${some.key}`          | the value of `some.key`                            |
+| `${some.key\|upcase}`  | the value of `some.key`, transformed (see below)   |
 | `$${some.key}`         | the literal text `${some.key}`                     |
 | `"${some.hash}"`       | the hash itself, when the string is only that ref  |
 | `"${some.array}"`      | the array itself, when the string is only that ref |
@@ -55,6 +56,45 @@ Requires i18n >= 1.9.
 The key is taken verbatim: `${ some.key }` refers to `" some.key "`, not to
 `some.key`. Only an exact `"${some.hash}"` returns the structure; with any
 text around it, whitespace included, the value is spliced into a string.
+
+### Transforms
+
+A reference may change the case of the text it pulls in, which saves keeping
+a lowercase or capitalized copy of every noun that appears mid-sentence and
+at the start of one:
+
+```yaml
+es:
+  employee: colaborador
+  found: "Se encontró un ${employee}"
+  title: "${employee|upcase_first} encontrado"
+  heading: "${employee|upcase}"
+```
+
+| Transform        | `jefe de Área` becomes |
+|------------------|------------------------|
+| `upcase`         | `JEFE DE ÁREA`         |
+| `downcase`       | `jefe de área`         |
+| `capitalize`     | `Jefe de área`         |
+| `upcase_first`   | `Jefe de Área`         |
+| `downcase_first` | `jefe de Área`         |
+
+Transforms chain left to right: `${employee|downcase|upcase_first}`. They
+apply once the reference is fully resolved, so nested references are expanded
+first. Interpolation placeholders (`%{name}`, `%<count>d`, `%%`) are kept as
+they are, so `${body|upcase}` with `body: "Dear %{name}"` gives
+`DEAR %{name}` and still interpolates. When interpolation values are passed to
+`I18n.t` they are forwarded to the referenced key before the transform, so the
+interpolated text is transformed along with the rest.
+
+Transform names are taken verbatim too. An unknown name, or a transform on a
+reference whose value is not text (a hash, an array, a number, a boolean),
+raises `I18n::Backend::EmbeddedReferences::TransformError`: both are mistakes
+in the locale files, and the checker below reports them before they reach
+runtime. A pluralization hash is the one structure that works: with `count`,
+I18n picks one of its strings before the transform runs, so
+`"${items|upcase}"` with `items: { one: ..., other: ... }` gives `2 ITEMS`
+for `I18n.t(:label, count: 2)` (and raises without `count`).
 
 References are resolved anywhere in the translation tree: in plain strings,
 inside hashes returned by `I18n.t(:some_scope)`, and inside arrays.
@@ -123,6 +163,10 @@ and reports, per file and key:
 - **circular references**: `a -> b -> a` (at runtime: `CircularReferenceError`)
 - **scope references embedded in text**: `"See ${menu}"` where `menu` is a
   hash or array
+- **transform errors**: `${name|shout}` names a transform that does not
+  exist, or `${menu|upcase}` transforms something that is not text (a hash,
+  an array, a number...; at runtime: `TransformError`). Pluralization hashes
+  are accepted, since they resolve to text when `count` is given
 
 ```bash
 bundle exec i18n-embedded-references check config/locales packs/**/config/locales

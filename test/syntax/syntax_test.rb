@@ -29,8 +29,37 @@ class SyntaxTest < Minitest::Test
     assert_equal [Ref.new(' name ')], Syntax.tokenize('${ name }')
   end
 
+  def test_reference_without_transforms
+    ref = Syntax.tokenize('${name}').first
+    assert_equal [], ref.transforms
+    refute ref.transforms?
+  end
+
+  def test_transforms_are_split_off_the_key_in_order
+    assert_equal [Ref.new('name', ['upcase'])], Syntax.tokenize('${name|upcase}')
+    assert_equal [Ref.new('user.name', %w[downcase upcase_first])],
+                 Syntax.tokenize('${user.name|downcase|upcase_first}')
+    assert Syntax.tokenize('${name|upcase}').first.transforms?
+  end
+
+  def test_transform_names_are_taken_verbatim
+    assert_equal [Ref.new('name', [' upcase'])], Syntax.tokenize('${name| upcase}')
+    assert_equal [Ref.new('name', [''])], Syntax.tokenize('${name|}')
+    assert_equal [Ref.new('', ['upcase'])], Syntax.tokenize('${|upcase}')
+  end
+
+  def test_marker_is_the_reference_as_written
+    assert_equal '${name}', Ref.new('name').marker
+    assert_equal '${name|downcase|upcase_first}', Syntax.tokenize('${name|downcase|upcase_first}').first.marker
+  end
+
+  def test_escaped_reference_with_transform_is_literal_text
+    assert_equal ['${name|upcase}'], Syntax.tokenize('$${name|upcase}')
+  end
+
   def test_single_reference
     assert Syntax.single_reference?(Syntax.tokenize('${menu}'))
+    assert Syntax.single_reference?(Syntax.tokenize('${menu|upcase}'))
     refute Syntax.single_reference?(Syntax.tokenize(' ${menu}'))
     refute Syntax.single_reference?(Syntax.tokenize('${a}${b}'))
     refute Syntax.single_reference?(Syntax.tokenize('$${menu}'))
