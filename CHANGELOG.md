@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.3.0
+
+- Transforms: `${key|upcase}` changes the case of the referenced text, and
+  `${key|downcase|upcase_first}` chains them left to right. Available:
+  `upcase`, `downcase`, `capitalize`, `upcase_first`, `downcase_first`.
+  Interpolation placeholders (`%{name}`, `%<name>d`, `%%`) are kept verbatim
+  so they still interpolate afterwards. An unknown transform name, or a
+  transform on a reference whose value is not text (a hash, an array, a
+  number, a boolean...), raises
+  `I18n::Backend::EmbeddedReferences::TransformError` at runtime and is
+  reported by the checker as a `transform` error. A pluralization hash is
+  accepted: with `count` it resolves to one of its strings before the
+  transform runs.
+- `I18n::EmbeddedReferences::Syntax::Reference` carries the parsed
+  `transforms` (an empty array when there are none) and exposes `marker`,
+  the reference as written.
+
 ## 1.2.1
 
 - Gem description mentions the static checker and describes the gem as a

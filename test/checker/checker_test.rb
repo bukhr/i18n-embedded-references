@@ -84,6 +84,79 @@ class CheckerTest < Minitest::Test
     assert_equal 0, report.references
   end
 
+  def test_known_transforms_are_fine
+    write('es.yml', "es:\n  name: Acme\n  hi: 'Hola ${name|upcase}'\n  bye: '${name|downcase|upcase_first}'\n")
+    report = check
+    assert report.ok?
+    assert_equal 2, report.references
+  end
+
+  def test_unknown_transform_is_an_error
+    write('es.yml', "es:\n  name: Acme\n  hi: 'Hola ${name|shout}'\n")
+    report = check
+    assert_equal [:transform], kinds(report)
+    problem = report.problems.first
+    assert_equal 'hi', problem.key
+    assert_match(/unknown transform "shout" in \$\{name\|shout\} \(known: upcase, downcase/, problem.message)
+  end
+
+  def test_unknown_transform_is_reported_with_the_broken_reference
+    write('es.yml', "es:\n  hi: 'Hola ${nope|shout|loud}'\n")
+    assert_equal %i[transform transform broken], kinds(check)
+  end
+
+  def test_transform_on_a_scope_is_an_error
+    write('es.yml', <<~YAML)
+      es:
+        menu: { a: 'x' }
+        days: [lun, mar]
+        alias: '${menu|upcase}'
+        list: '${days|upcase}'
+        text: 'ver ${menu|upcase}'
+    YAML
+    report = check
+    assert_equal %i[transform transform scope], kinds(report)
+    assert_match(/\$\{menu\|upcase\} applies a transform to a hash or array/, report.problems.first.message)
+  end
+
+  def test_transform_on_a_pluralization_hash_is_fine
+    write('es.yml', <<~YAML)
+      es:
+        items: { one: un item, other: '%{count} items' }
+        label: '${items|upcase}'
+        nested: { one: { a: x }, other: y }
+        bad: '${nested|upcase}'
+    YAML
+    report = check
+    assert_equal [:transform], kinds(report)
+    assert_equal 'bad', report.problems.first.key
+  end
+
+  def test_transform_on_a_non_text_scalar_is_an_error
+    write('es.yml', <<~YAML)
+      es:
+        total: 3
+        flag: true
+        day: 2024-01-01
+        name: Acme
+        a: '${total|upcase}'
+        b: '${flag|upcase}'
+        c: '${day|upcase}'
+        d: '${name|upcase}'
+    YAML
+    report = check
+    assert_equal %i[transform transform transform], kinds(report)
+    assert_equal %w[a b c], report.problems.map(&:key)
+    assert_match(/\$\{total\|upcase\} applies a transform to a value that is not text \(Integer\)/,
+                 report.problems.first.message)
+  end
+
+  def test_transform_on_an_ignored_missing_key_is_still_validated
+    write('es.yml', "es:\n  hi: 'Hola ${custom.employee|upcase} y ${custom.empresa|shout}'\n")
+    report = check(ignore_missing: ['custom.*'])
+    assert_equal [:transform], kinds(report)
+  end
+
   def test_cycle_is_an_error
     write('es.yml', "es:\n  a: 'x ${b}'\n  b: 'y ${c}'\n  c: 'z ${a}'\n")
     report = check

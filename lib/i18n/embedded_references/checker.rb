@@ -4,6 +4,7 @@ require 'yaml'
 require 'set'
 require 'date'
 require_relative 'syntax'
+require_relative 'transforms'
 
 module I18n
   module EmbeddedReferences
@@ -12,9 +13,13 @@ module I18n
     # Loads the files without booting I18n or Rails, flattens them into
     # `{ locale => { "dotted.key" => value } }` and verifies every reference:
     #
-    # - broken:  the target key does not exist in the locale or its fallbacks
-    # - cycle:   following references leads back to the starting key
-    # - scope:   a reference embedded in text points at a Hash/Array target
+    # - broken:    the target key does not exist in the locale or its fallbacks
+    # - cycle:     following references leads back to the starting key
+    # - scope:     a reference embedded in text points at a Hash/Array target
+    # - transform: `${key|nope}` names a transform that does not exist, or a
+    #              transform is applied to a target that is not text (a Hash
+    #              or Array, a number, a boolean...). A pluralization hash is
+    #              fine: it resolves to one of its strings when `count` is given
     #
     # Fallbacks default to the region-stripped parent (`es-CL` -> `es`), can be
     # extended per locale, and `default_fallbacks` are appended to every chain
@@ -53,6 +58,7 @@ module I18n
       YAML_CLASSES = [Symbol, Date, Time].freeze
       EMPTY_HASH = {}.freeze
       EMPTY_SET = Set.new.freeze
+      PLURAL_KEYS = %w[zero one two few many other].freeze
 
       attr_reader :fallbacks, :default_fallbacks, :ignore_missing, :app_chains, :app_default_fallbacks,
                   :app_fallbacks_disabled
@@ -201,8 +207,10 @@ module I18n
         count
       end
 
-      def check_reference(locale, key, ref, whole)
+      def check_reference(locale, key, reference, whole)
         file = @origins[locale][key]
+        ref = reference.key
+        check_transform_names(locale, key, reference, file)
         found = chain(locale).find { |l| key_defined?(l, ref) || scope?(l, ref) }
         if found.nil?
           return if ignored?(ref)
@@ -212,6 +220,36 @@ module I18n
         elsif !whole && scope?(found, ref)
           problem(:scope, :error, locale, key, file,
                   "reference ${#{ref}} is embedded in text but points to a hash or array")
+        elsif reference.transforms? && !transformable?(found, ref)
+          problem(:transform, :error, locale, key, file,
+                  "reference #{reference.marker} applies a transform to #{target_description(found, ref)}")
+        end
+      end
+
+      # A transform needs text. A pluralization hash qualifies: with `count`,
+      # I18n picks one of its entries (a string) before the transform runs.
+      def transformable?(locale, ref)
+        return plural_scope?(locale, ref) if scope?(locale, ref)
+
+        keys_of(locale, create: false)[ref].is_a?(String)
+      end
+
+      def plural_scope?(locale, ref)
+        prefix = "#{ref}."
+        children = keys_of(locale, create: false).keys.select { |k| k.start_with?(prefix) }
+        !children.empty? && children.all? { |k| PLURAL_KEYS.include?(k.delete_prefix(prefix)) }
+      end
+
+      def target_description(locale, ref)
+        return 'a hash or array' if scope?(locale, ref)
+
+        "a value that is not text (#{keys_of(locale, create: false)[ref].class})"
+      end
+
+      def check_transform_names(locale, key, reference, file)
+        Transforms.unknown(reference.transforms).each do |name|
+          problem(:transform, :error, locale, key, file,
+                  "unknown transform #{name.inspect} in #{reference.marker} (known: #{Transforms::NAMES.join(', ')})")
         end
       end
 
@@ -248,7 +286,7 @@ module I18n
         return [] unless source
 
         refs = []
-        each_string(@translations[source][key]) { |s| refs.concat(scan(s).map(&:first)) }
+        each_string(@translations[source][key]) { |s| refs.concat(scan(s).map { |reference, _| reference.key }) }
         refs.select { |ref| chain(locale).any? { |l| key_defined?(l, ref) } }
       end
 
@@ -260,13 +298,13 @@ module I18n
         end
       end
 
-      # Returns [[key, whole_string?], ...] skipping escaped `$${}` markers.
+      # Returns [[Reference, whole_string?], ...] skipping escaped `$${}` markers.
       def scan(string)
         return [] unless Syntax.markers?(string)
 
         tokens = Syntax.tokenize(string)
         whole = Syntax.single_reference?(tokens)
-        tokens.grep(Syntax::Reference).map { |ref| [ref.key, whole] }
+        tokens.grep(Syntax::Reference).map { |ref| [ref, whole] }
       end
 
       def ignored?(ref)
